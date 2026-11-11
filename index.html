@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f7f8fb"><title>わんこアニメ工房</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif;color:#172132;background:#f7f8fb}*{box-sizing:border-box}body{margin:0}main{max-width:650px;margin:auto;padding:20px 16px 70px}h1{font-size:25px;margin:0 0 4px}h2{font-size:18px;margin:0 0 12px}.sub{color:#647083;font-size:13px;line-height:1.6}.card{background:white;border:1px solid #dde3ec;border-radius:16px;padding:17px;margin-top:15px;box-shadow:0 2px 10px #11182708}label{display:block;font-size:14px;font-weight:700;margin:12px 0 6px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row>*{flex:1}select,input[type=file],button{font:inherit}select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;background:white}input[type=file]{max-width:100%;font-size:13px;padding:8px 0}button{background:#1766c6;color:white;border:0;border-radius:12px;font-weight:700;padding:14px;width:100%;margin-top:12px;cursor:pointer}button:disabled{background:#9aa6b8;cursor:not-allowed}.secondary{background:#e8eef8;color:#17518e}.hint{background:#f2f6fc;border-radius:10px;padding:12px;font-size:13px;line-height:1.7}.ok{color:#187147}.warn{color:#ac510c}.error{color:#b52c29}.status{white-space:pre-wrap;font-size:13px;line-height:1.8}.thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}.thumb{background:repeating-conic-gradient(#e6e8ec 0% 25%,white 0% 50%) 50%/14px 14px;border:1px solid #d3dbe6;aspect-ratio:320/270;width:100%;object-fit:contain;border-radius:6px}#preview{display:block;width:min(100%,320px);aspect-ratio:320/270;object-fit:contain;margin:12px auto;border:1px solid #d8dde6;border-radius:10px;background:repeating-conic-gradient(#e6e8ec 0% 25%,white 0% 50%) 50%/18px 18px}small{font-size:12px}.mini{font-size:12px;color:#637083}a{color:#165bb0}.pass{background:#effaf2;border:1px solid #c2e9ca;border-radius:10px;padding:12px;line-height:1.6}
+</style></head>
+<body><main>
+<h1>🐶 わんこアニメ工房</h1><div class="sub">LINEアニメーションスタンプ向け APNG作成（試作版 v1.1）<br>iPhoneのSafariで利用できます。画像処理は端末内で実行します。</div>
+<section class="card"><h2>① 画像を読み込む</h2><div class="hint">4列×2行に並んだ画像<strong>1枚</strong>、または順番に並べたPNG画像<strong>8枚</strong>を選べます。画質維持のため、元画像はできるだけ大きく鮮明なものを使ってください。</div>
+<label for="sheet">4×2の8コマ画像（1枚）</label><input type="file" id="sheet" accept="image/png,image/webp,image/jpeg,image/*">
+<label for="frames">またはPNG画像8枚（ファイル名の昇順）</label><input type="file" id="frames" accept="image/png,image/*" multiple>
+<div id="sourceState" class="status sub" aria-live="polite">画像は未選択です。</div><div id="thumbs" class="thumbs"></div></section>
+<section class="card"><h2>② LINE用設定</h2><div class="hint">送っていただいたLINE Creators Marketのエラー画面を基準にしています。<strong>横320px × 縦270px</strong>で書き出します。形式は<strong>APNG（拡張子 .png）</strong>です。<strong>1ファイル1MB以下</strong>を必須条件として、超えた場合は自動軽量化します。</div>
+<div class="row"><div><label for="duration">合計再生時間</label><select id="duration"><option value="1">1秒</option><option value="2" selected>2秒</option><option value="3">3秒</option><option value="4">4秒</option></select></div><div><label for="loops">再生ループ回数</label><select id="loops"><option value="1" selected>1回</option><option value="2">2回</option><option value="3">3回</option><option value="4">4回</option></select></div></div>
+<label for="fit">画像の収め方</label><select id="fit"><option value="contain" selected>全体を収める（切れにくい・推奨）</option><option value="cover">画面いっぱい（端が切れる場合あり）</option></select>
+<label for="filename">出力ファイル名</label><select id="filename"><option value="01" selected>01.png</option><option value="sample">sample.png</option></select>
+<canvas id="preview" width="320" height="270" aria-label="アニメーションプレビュー"></canvas><div class="sub" style="text-align:center">アニメーションプレビュー（端末上での確認用）</div>
+<button id="generate" disabled>APNGを作成する</button><div id="result" class="status" aria-live="polite"></div></section>
+<section class="card"><h2>③ LINEに登録する前の確認</h2><div id="verify" class="hint">APNG生成後に、ファイル構造・サイズ・フレーム数・ループ回数・1MB以下を検査します。</div><div class="sub" style="margin-top:10px">このアプリは8コマからAPNGを作るものです。<strong>犬の絵柄自体をAIで修正する機能、メイン画像・タブ画像の自動生成、LINEへの自動申請</strong>は含みません。登録画面で必要な他の画像は別途準備してください。</div></section>
+</main><script>
+'use strict';
+const $=id=>document.getElementById(id);
+const W=320,H=270,COUNT=8;
+let sourceFrames=[],previewTimer=null,lastBlob=null;
+const enc=new TextEncoder();
+function crc32(bytes){let c=0xffffffff;for(let i=0;i<bytes.length;i++){c^=bytes[i];for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0);}return(c^0xffffffff)>>>0;}
+function be32(v){return new Uint8Array([(v>>>24)&255,(v>>>16)&255,(v>>>8)&255,v&255]);}
+function be16(v){return new Uint8Array([(v>>>8)&255,v&255]);}
+function le16(v){return new Uint8Array([v&255,(v>>>8)&255]);}
+function le32(v){return new Uint8Array([v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255]);}
+function concat(parts){const n=parts.reduce((s,p)=>s+p.length,0),out=new Uint8Array(n);let i=0;for(const p of parts){out.set(p,i);i+=p.length;}return out;}
+function chunk(type,data){const typ=enc.encode(type),body=concat([typ,data]);return concat([be32(data.length),body,be32(crc32(body))]);}
+function parsePng(bytes){const signature=[137,80,78,71,13,10,26,10];if(!signature.every((v,i)=>bytes[i]===v))throw Error('PNG形式ではありません');const chunks=[];let p=8;while(p+12<=bytes.length){const len=((bytes[p]*16777216)+(bytes[p+1]<<16)+(bytes[p+2]<<8)+bytes[p+3])>>>0;const type=String.fromCharCode(...bytes.slice(p+4,p+8));if(p+12+len>bytes.length)throw Error('PNGのチャンクが破損しています');const data=bytes.slice(p+8,p+8+len);chunks.push({type,data});p+=12+len;if(type==='IEND')break;}return chunks;}
+function loadImg(file){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};img.onerror=()=>{URL.revokeObjectURL(url);reject(Error('画像を開けません: '+file.name))};img.src=url;});}
+function imgToCanvas(img,sx=0,sy=0,sw=img.naturalWidth,sh=img.naturalHeight){const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');const fit=$('fit').value;const scale=fit==='cover'?Math.max(W/sw,H/sh):Math.min(W/sw,H/sh);const dw=sw*scale,dh=sh*scale;x.clearRect(0,0,W,H);x.drawImage(img,sx,sy,sw,sh,(W-dw)/2,(H-dh)/2,dw,dh);return c;}
+function fileBlob(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(new Blob([r.result],{type:file.type}));r.onerror=reject;r.readAsArrayBuffer(file);});}
+async function readSheet(file){const img=await loadImg(file);if(img.naturalWidth%4!==0||img.naturalHeight%2!==0)throw Error('4列×2行で均等分割できる画像を使用してください（横幅は4の倍数、縦幅は2の倍数）。');const sw=img.naturalWidth/4,sh=img.naturalHeight/2;return Array.from({length:8},(_,i)=>imgToCanvas(img,(i%4)*sw,Math.floor(i/4)*sh,sw,sh));}
+async function readFrames(files){if(files.length!==8)throw Error('個別画像は8枚選んでください（現在'+files.length+'枚）。');const sorted=[...files].sort((a,b)=>a.name.localeCompare(b.name,'ja',{numeric:true}));const imgs=await Promise.all(sorted.map(loadImg));return imgs.map(im=>imgToCanvas(im));}
+function showFrames(){const root=$('thumbs');root.innerHTML='';for(const c of sourceFrames){const im=document.createElement('img');im.className='thumb';im.src=c.toDataURL('image/png');root.append(im)}$('generate').disabled=sourceFrames.length!==COUNT;startPreview();}
+function startPreview(){if(previewTimer)clearInterval(previewTimer);const x=$('preview').getContext('2d');let i=0;const draw=()=>{x.clearRect(0,0,W,H);if(sourceFrames.length)x.drawImage(sourceFrames[i%sourceFrames.length],0,0);i++};draw();if(sourceFrames.length)previewTimer=setInterval(draw,(Number($('duration').value)*1000)/COUNT);}
+async function processFiles(mode){$('result').textContent='';$('verify').textContent='APNG生成後に検査します';$('sourceState').textContent='画像を読み込み中…';try{let f;if(mode==='sheet'){f=$('sheet').files[0];if(!f)return;$('frames').value='';sourceFrames=await readSheet(f);}else{const files=$('frames').files;if(!files.length)return;$('sheet').value='';sourceFrames=await readFrames(files);}showFrames();$('sourceState').textContent='✅ 8コマ読み込み完了。画像の並びを確認してください。';}catch(e){sourceFrames=[];showFrames();$('sourceState').textContent='❌ '+e.message;}}
+$('sheet').addEventListener('change',()=>processFiles('sheet'));
+$('frames').addEventListener('change',()=>processFiles('frames'));
+$('duration').addEventListener('change',startPreview);
+$('fit').addEventListener('change',()=>{if($('sheet').files.length)processFiles('sheet');else if($('frames').files.length)processFiles('frames');});
+function toPngBlob(canvas){return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('PNG出力に失敗しました')),'image/png'));}
+function gcd(a,b){while(b)[a,b]=[b,a%b];return a;}
+async function buildApng(canvases,duration,loops){const pngs=await Promise.all(canvases.map(async c=>parsePng(new Uint8Array(await(await toPngBlob(c)).arrayBuffer()))));const first=pngs[0];const ihdr=first.find(c=>c.type==='IHDR');if(!ihdr)throw Error('IHDRが見つかりません');const ancillary=first.filter(c=>!['IHDR','IDAT','IEND','acTL','fcTL','fdAT'].includes(c.type));const frames=pngs.map(ch=>concat(ch.filter(c=>c.type==='IDAT').map(c=>c.data)));
+// APNG delay uses rational seconds; for 8 frames and duration 1–4 s, frame delay = duration/8.
+let numer=duration,denom=COUNT;const g=gcd(numer,denom);numer/=g;denom/=g;
+const parts=[new Uint8Array([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr.data),...ancillary.map(c=>chunk(c.type,c.data)),chunk('acTL',concat([be32(COUNT),be32(loops)]))];let seq=0;
+for(let i=0;i<COUNT;i++){const control=concat([be32(seq++),be32(W),be32(H),be32(0),be32(0),be16(numer),be16(denom),new Uint8Array([0,0])]);parts.push(chunk('fcTL',control));parts.push(chunk(i===0?'IDAT':'fdAT',i===0?frames[i]:concat([be32(seq++),frames[i]])));}parts.push(chunk('IEND',new Uint8Array()));return new Blob(parts,{type:'image/png'});}
+function verifyApng(bytes,duration,loops){const chunks=parsePng(bytes),ihdr=chunks.find(c=>c.type==='IHDR'),actl=chunks.find(c=>c.type==='acTL'),fctl=chunks.filter(c=>c.type==='fcTL');if(!ihdr||!actl)throw Error('APNG制御情報を確認できません');const u32=(a,i)=>((a[i]*16777216)+(a[i+1]<<16)+(a[i+2]<<8)+a[i+3])>>>0;const w=u32(ihdr.data,0),h=u32(ihdr.data,4),count=u32(actl.data,0),lp=u32(actl.data,4);if(w!==W||h!==H||count!==COUNT||fctl.length!==COUNT||lp!==loops)throw Error('APNGの寸法・フレーム数・ループに不整合があります');let seconds=0;for(const c of fctl){let numerator=c.data[20]*256+c.data[21],denominator=c.data[22]*256+c.data[23];seconds+=numerator/(denominator||100);}if(Math.abs(seconds-duration)>0.001)throw Error('再生時間に不整合があります');return{w,h,count,loops,seconds};}
+function download(blob,name){const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+function zipOne(data,name){const nb=enc.encode(name),crc=crc32(data),size=data.length,local=concat([le32(0x04034b50),le16(20),le16(0),le16(0),le16(0),le16(0),le32(crc),le32(size),le32(size),le16(nb.length),le16(0),nb,data]);const center=concat([le32(0x02014b50),le16(20),le16(20),le16(0),le16(0),le16(0),le16(0),le32(crc),le32(size),le32(size),le16(nb.length),le16(0),le16(0),le16(0),le16(0),le32(0),le32(0),nb]);const tail=concat([le32(0x06054b50),le16(0),le16(0),le16(1),le16(1),le32(center.length),le32(local.length),le16(0)]);return new Blob([local,center,tail],{type:'application/zip'});}
+const LIMIT=1000000; // 1MBを10進法の1,000,000バイトとして安全側に判定
+function quantizeFrames(original,steps){
+  return original.map(c=>{const out=document.createElement('canvas');out.width=W;out.height=H;
+    const ctx=out.getContext('2d',{willReadFrequently:true});ctx.drawImage(c,0,0);
+    const im=ctx.getImageData(0,0,W,H),d=im.data;
+    for(let i=0;i<d.length;i+=4){const a=d[i+3];if(!a){d[i]=d[i+1]=d[i+2]=0;continue;}
+      for(let j=0;j<3;j++)d[i+j]=Math.min(255,Math.round(d[i+j]/steps)*steps);
+      d[i+3]=Math.min(255,Math.round(a/steps)*steps);
+    }
+    ctx.putImageData(im,0,0);return out;
+  });
+}
+async function buildWithinLimit(frames,duration,loops){
+  const levels=[1,2,4,8,12,16,24,32];let smallest=Infinity;
+  for(const step of levels){
+    const adjusted=step===1?frames:quantizeFrames(frames,step);
+    const blob=await buildApng(adjusted,duration,loops);smallest=Math.min(smallest,blob.size);
+    if(blob.size<=LIMIT)return {blob,step};
+  }
+  throw Error('自動軽量化しても1MB以下に収まりませんでした。最小サイズ '+(smallest/1000).toFixed(1)+'KB。素材の細部・背景・動きの差を減らしてください。1MBを超えるファイルは出力しません。');
+}
+$('generate').addEventListener('click',async()=>{
+  if(sourceFrames.length!==COUNT)return;
+  const btn=$('generate');btn.disabled=true;$('result').textContent='APNG生成・容量調整中…';
+  try{
+    const duration=Number($('duration').value),loops=Number($('loops').value),name=$('filename').value+'.png';
+    const {blob,step}=await buildWithinLimit(sourceFrames,duration,loops);
+    const bytes=new Uint8Array(await blob.arrayBuffer()),v=verifyApng(bytes,duration,loops);
+    if(blob.size>LIMIT)throw Error('容量検査に失敗しました');
+    lastBlob=blob;const size=(blob.size/1000).toFixed(1);
+    $('verify').innerHTML=`<div class="pass">✅ PNG/APNG構造を検査済み<br>✅ ${v.w}×${v.h}px / ${v.count}コマ<br>✅ 合計${v.seconds}秒 / ${v.loops}回ループ<br>✅ 拡張子 .png<br>✅ ファイル容量 ${size}KB / 上限1000KB${step>1?'<br>ℹ️ 容量制限のため色の精度を調整しました。プレビュー画質を確認してください。':''}</div>`;
+    $('result').innerHTML='✅ 1MB以下のAPNGが完成しました。<br><small>保存してLINE登録をお試しください。</small>';
+    const b1=document.createElement('button');b1.textContent='APNG（'+name+'）を保存';b1.onclick=()=>download(blob,name);
+    const b2=document.createElement('button');b2.className='secondary';b2.textContent='ZIP（APNG 1個入り）を保存';b2.onclick=()=>download(zipOne(bytes,name),'line_apng.zip');
+    $('result').append(b1,b2);
+  }catch(e){lastBlob=null;$('result').textContent='❌ '+e.message;$('verify').textContent='容量または生成条件が未達です。';}
+  finally{btn.disabled=false;}
+});
+</script></body></html>
