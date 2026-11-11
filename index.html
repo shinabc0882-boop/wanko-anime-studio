@@ -7,12 +7,12 @@
 :root{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif;color:#172132;background:#f7f8fb}*{box-sizing:border-box}body{margin:0}main{max-width:650px;margin:auto;padding:20px 16px 70px}h1{font-size:25px;margin:0 0 4px}h2{font-size:18px;margin:0 0 12px}.sub{color:#647083;font-size:13px;line-height:1.6}.card{background:white;border:1px solid #dde3ec;border-radius:16px;padding:17px;margin-top:15px;box-shadow:0 2px 10px #11182708}label{display:block;font-size:14px;font-weight:700;margin:12px 0 6px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row>*{flex:1}select,input[type=file],button{font:inherit}select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;background:white}input[type=file]{max-width:100%;font-size:13px;padding:8px 0}button{background:#1766c6;color:white;border:0;border-radius:12px;font-weight:700;padding:14px;width:100%;margin-top:12px;cursor:pointer}button:disabled{background:#9aa6b8;cursor:not-allowed}.secondary{background:#e8eef8;color:#17518e}.hint{background:#f2f6fc;border-radius:10px;padding:12px;font-size:13px;line-height:1.7}.ok{color:#187147}.warn{color:#ac510c}.error{color:#b52c29}.status{white-space:pre-wrap;font-size:13px;line-height:1.8}.thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}.thumb{background:repeating-conic-gradient(#e6e8ec 0% 25%,white 0% 50%) 50%/14px 14px;border:1px solid #d3dbe6;aspect-ratio:320/270;width:100%;object-fit:contain;border-radius:6px}#preview{display:block;width:min(100%,320px);aspect-ratio:320/270;object-fit:contain;margin:12px auto;border:1px solid #d8dde6;border-radius:10px;background:repeating-conic-gradient(#e6e8ec 0% 25%,white 0% 50%) 50%/18px 18px}small{font-size:12px}.mini{font-size:12px;color:#637083}a{color:#165bb0}.pass{background:#effaf2;border:1px solid #c2e9ca;border-radius:10px;padding:12px;line-height:1.6}
 </style></head>
 <body><main>
-<h1>🐶 わんこアニメ工房</h1><div class="sub">LINEアニメーションスタンプ向け APNG作成（試作版 v1.2）<br>iPhoneのSafariで利用できます。画像処理は端末内で実行します。</div>
+<h1>🐶 わんこアニメ工房</h1><div class="sub">LINEアニメーションスタンプ向け APNG作成（試作版 v1.3）<br>iPhoneのSafariで利用できます。画像処理は端末内で実行します。</div>
 <section class="card"><h2>① 画像を読み込む</h2><div class="hint">4列×2行に並んだ画像<strong>1枚</strong>、または順番に並べたPNG画像<strong>8枚</strong>を選べます。画像の横幅・縦幅が割り切れない場合も自動で均等分割します。画質維持のため、元画像はできるだけ大きく鮮明なものを使ってください。</div>
 <label for="sheet">4×2の8コマ画像（1枚）</label><input type="file" id="sheet" accept="image/png,image/webp,image/jpeg,image/*">
 <label for="frames">またはPNG画像8枚（ファイル名の昇順）</label><input type="file" id="frames" accept="image/png,image/*" multiple>
 <div id="sourceState" class="status sub" aria-live="polite">画像は未選択です。</div><div id="thumbs" class="thumbs"></div></section>
-<section class="card"><h2>② LINE用設定</h2><div class="hint">送っていただいたLINE Creators Marketのエラー画面を基準にしています。<strong>横320px × 縦270px</strong>で書き出します。形式は<strong>APNG（拡張子 .png）</strong>です。<strong>1ファイル1MB以下</strong>を必須条件として、超えた場合は自動軽量化します。</div>
+<section class="card"><h2>② LINE用設定</h2><div class="hint">送っていただいたLINE Creators Marketのエラー画面を基準にしています。<strong>横320px × 縦270px</strong>で書き出します。形式は<strong>APNG（拡張子 .png）</strong>です。<strong>1ファイル1MB以下</strong>を必須条件として、超えた場合は自動軽量化します。LINEで登録できた検証ファイルと同様に、追加メタデータを除外し、画像データを最大64KB単位に分割して書き出します。</div>
 <div class="row"><div><label for="duration">合計再生時間</label><select id="duration"><option value="1">1秒</option><option value="2" selected>2秒</option><option value="3">3秒</option><option value="4">4秒</option></select></div><div><label for="loops">再生ループ回数</label><select id="loops"><option value="1" selected>1回</option><option value="2">2回</option><option value="3">3回</option><option value="4">4回</option></select></div></div>
 <label for="fit">画像の収め方</label><select id="fit"><option value="contain" selected>全体を収める（切れにくい・推奨）</option><option value="cover">画面いっぱい（端が切れる場合あり）</option></select>
 <label for="filename">出力ファイル名</label><select id="filename"><option value="01" selected>01.png</option><option value="sample">sample.png</option></select>
@@ -47,12 +47,26 @@ $('duration').addEventListener('change',startPreview);
 $('fit').addEventListener('change',()=>{if($('sheet').files.length)processFiles('sheet');else if($('frames').files.length)processFiles('frames');});
 function toPngBlob(canvas){return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('PNG出力に失敗しました')),'image/png'));}
 function gcd(a,b){while(b)[a,b]=[b,a%b];return a;}
-async function buildApng(canvases,duration,loops){const pngs=await Promise.all(canvases.map(async c=>parsePng(new Uint8Array(await(await toPngBlob(c)).arrayBuffer()))));const first=pngs[0];const ihdr=first.find(c=>c.type==='IHDR');if(!ihdr)throw Error('IHDRが見つかりません');const ancillary=first.filter(c=>!['IHDR','IDAT','IEND','acTL','fcTL','fdAT'].includes(c.type));const frames=pngs.map(ch=>concat(ch.filter(c=>c.type==='IDAT').map(c=>c.data)));
+async function buildApng(canvases,duration,loops){const pngs=await Promise.all(canvases.map(async c=>parsePng(new Uint8Array(await(await toPngBlob(c)).arrayBuffer()))));const first=pngs[0];const ihdr=first.find(c=>c.type==='IHDR');if(!ihdr)throw Error('IHDRが見つかりません');const frames=pngs.map(ch=>concat(ch.filter(c=>c.type==='IDAT').map(c=>c.data)));
 // APNG delay uses rational seconds; for 8 frames and duration 1–4 s, frame delay = duration/8.
 let numer=duration,denom=COUNT;const g=gcd(numer,denom);numer/=g;denom/=g;
-const parts=[new Uint8Array([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr.data),...ancillary.map(c=>chunk(c.type,c.data)),chunk('acTL',concat([be32(COUNT),be32(loops)]))];let seq=0;
-for(let i=0;i<COUNT;i++){const control=concat([be32(seq++),be32(W),be32(H),be32(0),be32(0),be16(numer),be16(denom),new Uint8Array([0,0])]);parts.push(chunk('fcTL',control));parts.push(chunk(i===0?'IDAT':'fdAT',i===0?frames[i]:concat([be32(seq++),frames[i]])));}parts.push(chunk('IEND',new Uint8Array()));return new Blob(parts,{type:'image/png'});}
-function verifyApng(bytes,duration,loops){const chunks=parsePng(bytes),ihdr=chunks.find(c=>c.type==='IHDR'),actl=chunks.find(c=>c.type==='acTL'),fctl=chunks.filter(c=>c.type==='fcTL');if(!ihdr||!actl)throw Error('APNG制御情報を確認できません');const u32=(a,i)=>((a[i]*16777216)+(a[i+1]<<16)+(a[i+2]<<8)+a[i+3])>>>0;const w=u32(ihdr.data,0),h=u32(ihdr.data,4),count=u32(actl.data,0),lp=u32(actl.data,4);if(w!==W||h!==H||count!==COUNT||fctl.length!==COUNT||lp!==loops)throw Error('APNGの寸法・フレーム数・ループに不整合があります');let seconds=0;for(const c of fctl){let numerator=c.data[20]*256+c.data[21],denominator=c.data[22]*256+c.data[23];seconds+=numerator/(denominator||100);}if(Math.abs(seconds-duration)>0.001)throw Error('再生時間に不整合があります');return{w,h,count,loops,seconds};}
+// LINEに登録できた検証APNGと同じチャンク構成を採用。
+// 各PNGの画像データ(IDAT)だけを利用し、追加メタデータを含めない。
+// PNGの圧縮済みデータは再圧縮せず、最大64KiBごとにIDAT/fdATへ分割する。
+const parts=[new Uint8Array([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr.data),chunk('acTL',concat([be32(COUNT),be32(loops)]))];
+const MAX_DATA=65536;let seq=0;
+for(let i=0;i<COUNT;i++){
+  const control=concat([be32(seq++),be32(W),be32(H),be32(0),be32(0),be16(numer),be16(denom),new Uint8Array([0,0])]);
+  parts.push(chunk('fcTL',control));
+  const frame=frames[i];
+  for(let start=0;start<frame.length;start+=MAX_DATA){
+    const piece=frame.subarray(start,Math.min(start+MAX_DATA,frame.length));
+    if(i===0)parts.push(chunk('IDAT',piece));
+    else parts.push(chunk('fdAT',concat([be32(seq++),piece])));
+  }
+}
+parts.push(chunk('IEND',new Uint8Array()));return new Blob(parts,{type:'image/png'});}
+function verifyApng(bytes,duration,loops){const chunks=parsePng(bytes),ihdr=chunks.find(c=>c.type==='IHDR'),actl=chunks.find(c=>c.type==='acTL'),fctl=chunks.filter(c=>c.type==='fcTL');if(!ihdr||!actl)throw Error('APNG制御情報を確認できません');if(chunks.some(c=>!['IHDR','acTL','fcTL','IDAT','fdAT','IEND'].includes(c.type)))throw Error('不要なメタデータが含まれています');if(chunks.some(c=>(c.type==='IDAT'&&c.data.length>65536)||(c.type==='fdAT'&&c.data.length>65540)))throw Error('画像データのチャンクが大きすぎます');const u32=(a,i)=>((a[i]*16777216)+(a[i+1]<<16)+(a[i+2]<<8)+a[i+3])>>>0;const w=u32(ihdr.data,0),h=u32(ihdr.data,4),count=u32(actl.data,0),lp=u32(actl.data,4);if(w!==W||h!==H||count!==COUNT||fctl.length!==COUNT||lp!==loops)throw Error('APNGの寸法・フレーム数・ループに不整合があります');let seconds=0;for(const c of fctl){let numerator=c.data[20]*256+c.data[21],denominator=c.data[22]*256+c.data[23];seconds+=numerator/(denominator||100);}if(Math.abs(seconds-duration)>0.001)throw Error('再生時間に不整合があります');return{w,h,count,loops,seconds};}
 function download(blob,name){const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 function zipOne(data,name){const nb=enc.encode(name),crc=crc32(data),size=data.length,local=concat([le32(0x04034b50),le16(20),le16(0),le16(0),le16(0),le16(0),le32(crc),le32(size),le32(size),le16(nb.length),le16(0),nb,data]);const center=concat([le32(0x02014b50),le16(20),le16(20),le16(0),le16(0),le16(0),le16(0),le32(crc),le32(size),le32(size),le16(nb.length),le16(0),le16(0),le16(0),le16(0),le32(0),le32(0),nb]);const tail=concat([le32(0x06054b50),le16(0),le16(0),le16(1),le16(1),le32(center.length),le32(local.length),le16(0)]);return new Blob([local,center,tail],{type:'application/zip'});}
 const LIMIT=1000000; // 1MBを10進法の1,000,000バイトとして安全側に判定
@@ -85,8 +99,8 @@ $('generate').addEventListener('click',async()=>{
     const bytes=new Uint8Array(await blob.arrayBuffer()),v=verifyApng(bytes,duration,loops);
     if(blob.size>LIMIT)throw Error('容量検査に失敗しました');
     lastBlob=blob;const size=(blob.size/1000).toFixed(1);
-    $('verify').innerHTML=`<div class="pass">✅ PNG/APNG構造を検査済み<br>✅ ${v.w}×${v.h}px / ${v.count}コマ<br>✅ 合計${v.seconds}秒 / ${v.loops}回ループ<br>✅ 拡張子 .png<br>✅ ファイル容量 ${size}KB / 上限1000KB${step>1?'<br>ℹ️ 容量制限のため色の精度を調整しました。プレビュー画質を確認してください。':''}</div>`;
-    $('result').innerHTML='✅ 1MB以下のAPNGが完成しました。<br><small>保存してLINE登録をお試しください。</small>';
+    $('verify').innerHTML=`<div class="pass">✅ LINE登録成功ファイルに合わせたAPNG構造を検査済み<br>✅ ${v.w}×${v.h}px / ${v.count}コマ<br>✅ 合計${v.seconds}秒 / ${v.loops}回ループ<br>✅ 拡張子 .png<br>✅ ファイル容量 ${size}KB / 上限1000KB${step>1?'<br>ℹ️ 容量制限のため色の精度を調整しました。プレビュー画質を確認してください。':''}</div>`;
+    $('result').innerHTML='✅ LINE向け形式で1MB以下のAPNGが完成しました。<br><small>LINEへの登録可否は実際のアップロードで確認してください。</small>';
     const b1=document.createElement('button');b1.textContent='APNG（'+name+'）を保存';b1.onclick=()=>download(blob,name);
     const b2=document.createElement('button');b2.className='secondary';b2.textContent='ZIP（APNG 1個入り）を保存';b2.onclick=()=>download(zipOne(bytes,name),'line_apng.zip');
     $('result').append(b1,b2);
